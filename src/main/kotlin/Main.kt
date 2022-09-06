@@ -5,23 +5,24 @@ import java.awt.Color
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
+
 open class Image (
     var imageFile: File? = null, var width: Int = 0, var height: Int = 0,
     var components: Int = 0, var colorComponents: Int = 0, var bitsPerPixel: Int = 0, var transparency: String = "")
 
 fun main() {
-
-    val originalFile: File = fileIsAcceptable("image", null)
+    val originalFile: File = fileIsAcceptable("image", "image")
     val bufferedOriginalImage: BufferedImage = ImageIO.read(originalFile)
     val originalImage: Image = origImageRead(originalFile)
-    val watermarkFile: File = fileIsAcceptable("watermark image", originalImage)
+    val watermarkFile: File = fileIsAcceptable("watermark image", "watermark")
     val bufferedWatermarkImage: BufferedImage = ImageIO.read(watermarkFile)
+    bothAreSameSize(bufferedWatermarkImage, bufferedOriginalImage)
     val watermarkImage: Image = origImageRead(watermarkFile)
     val weightPercentage: Int? = weightPercent()
     writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage)
 }
 
-fun fileIsAcceptable (imageName: String, originalImage: Image?): File {
+fun fileIsAcceptable (imageName: String, imageName2: String): File {
     println("Input the $imageName filename:")
     val imageFile = File(readln())
     if (!imageFile.exists()) {
@@ -30,18 +31,22 @@ fun fileIsAcceptable (imageName: String, originalImage: Image?): File {
     }
     val bufferedImage: BufferedImage = ImageIO.read(imageFile)
     if (bufferedImage.colorModel.numColorComponents != 3) {
-        println("The number of image color components isn't 3.")
+        println("The number of $imageName2 color components isn't 3.")
         exit()
     } else if (bufferedImage.colorModel.pixelSize != 24 && bufferedImage.colorModel.pixelSize != 32) {
-        println("The image isn't 24 or 32-bit.")
+        println("The $imageName2 isn't 24 or 32-bit.")
         exit()
-    }else if (imageName == "watermark image")
-        if  (bufferedImage.width != originalImage!!.width || bufferedImage.height != originalImage.height)
-            println("The image and watermark dimensions are different.")
-    exit()
+    }
     return imageFile
 }
 
+fun bothAreSameSize (waterMarkBufferedImage: BufferedImage, originalImage: BufferedImage) {
+    if (waterMarkBufferedImage.width != originalImage.width || waterMarkBufferedImage.height != originalImage.height)
+    {
+        println("The image and watermark dimensions are different.")
+        exit()
+    }
+}
 
 fun origImageRead (imageFile: File): Image {
     val image: BufferedImage = ImageIO.read(imageFile)
@@ -72,24 +77,25 @@ fun weightPercent (): Int? {
 fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage, weight: Int?) {
     println("Input the output image filename (jpg or png extension):")
     val outputName = File(readln())
-    if (outputName.extension != "jpg" || outputName.extension != "png") {
+    if (outputName.extension != "jpg" && outputName.extension != "png") {
         println("The output file extension isn't \"jpg\" or \"png\".")
         exit()
+    } else {
+        val blendedImage = BufferedImage(watermarkImage.width, watermarkImage.height, BufferedImage.TYPE_INT_RGB)
+        for (x in 0 until bufferedOriginal.width)
+            for (y in 0 until bufferedOriginal.height) {
+                val i = Color(bufferedOriginal.getRGB(x, y))
+                val w = Color(bufferedWatermark.getRGB(x, y))
+                val color = Color(
+                    (weight!! * w.red + (100 - weight) * i.red) / 100,
+                    (weight * w.green + (100 - weight) * i.green) / 100,
+                    (weight * w.blue + (100 - weight) * i.blue) / 100
+                )
+                blendedImage.setRGB(x, y, color.rgb)
+            }
+        ImageIO.write(blendedImage, outputName.extension, outputName)
+        println("The watermarked image $outputName has been created.")
     }
-    val blendedImage = BufferedImage(watermarkImage.width, watermarkImage.height, BufferedImage.TYPE_INT_RGB)
-    for (x in 0 until bufferedOriginal.width)
-        for (y in 0 until bufferedOriginal.height) {
-            val i = Color(bufferedOriginal.getRGB(x, y))
-            val w = Color(bufferedWatermark.getRGB(x, y))
-            val color = Color(
-                (weight!! * w.red + (100 - weight) * i.red) / 100,
-                (weight * w.green + (100 - weight) * i.green) / 100,
-                (weight * w.blue + (100 - weight) * i.blue) / 100
-            )
-            blendedImage.setRGB(x, y, color.rgb)
-        }
-    ImageIO.write(blendedImage, outputName.extension, outputName)
-    println("The watermarked image $outputName has been created.")
 }
 
 fun exit () {
