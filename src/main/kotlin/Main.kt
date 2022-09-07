@@ -18,8 +18,10 @@ fun main() {
     val bufferedWatermarkImage: BufferedImage = ImageIO.read(watermarkFile)
     bothAreSameSize(bufferedWatermarkImage, bufferedOriginalImage)
     val watermarkImage: Image = origImageRead(watermarkFile)
+    val hasWatermarkAlphaChannel = watermarkImage.transparency == "TRANSLUCENT"
+    val useWatermarkAlphaChannel = useWatermarkAlphaChannel(hasWatermarkAlphaChannel)
     val weightPercentage: Int? = weightPercent()
-    writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage)
+    writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage, useWatermarkAlphaChannel)
 }
 
 fun fileIsAcceptable (imageName: String, imageName2: String): File {
@@ -38,6 +40,15 @@ fun fileIsAcceptable (imageName: String, imageName2: String): File {
         exit()
     }
     return imageFile
+}
+
+fun useWatermarkAlphaChannel (hasWatermarkAlphaChannel: Boolean): String {
+    var useAlphaChannel = ""
+    if (hasWatermarkAlphaChannel) {
+        println("Do you want to use the watermark's Alpha channel?")
+        (if(readln() == "yes") {"yes"} else {"no"}).also { useAlphaChannel = it }
+    }
+    return useAlphaChannel
 }
 
 fun bothAreSameSize (waterMarkBufferedImage: BufferedImage, originalImage: BufferedImage) {
@@ -74,7 +85,8 @@ fun weightPercent (): Int? {
     return percentage
 }
 
-fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage, weight: Int?) {
+fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage,
+               weight: Int?, useWatermarkAlphaChannel: String) {
     println("Input the output image filename (jpg or png extension):")
     val outputName = File(readln())
     if (outputName.extension != "jpg" && outputName.extension != "png") {
@@ -84,14 +96,29 @@ fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedW
         val blendedImage = BufferedImage(watermarkImage.width, watermarkImage.height, BufferedImage.TYPE_INT_RGB)
         for (x in 0 until bufferedOriginal.width)
             for (y in 0 until bufferedOriginal.height) {
-                val i = Color(bufferedOriginal.getRGB(x, y))
-                val w = Color(bufferedWatermark.getRGB(x, y))
-                val color = Color(
-                    (weight!! * w.red + (100 - weight) * i.red) / 100,
-                    (weight * w.green + (100 - weight) * i.green) / 100,
-                    (weight * w.blue + (100 - weight) * i.blue) / 100
-                )
-                blendedImage.setRGB(x, y, color.rgb)
+                if (useWatermarkAlphaChannel == "yes") {
+                    val i = Color(bufferedOriginal.getRGB(x, y))
+                    val w = Color(bufferedWatermark.getRGB(x, y), true)
+                    val color = if (w.alpha == 255) {
+                        Color(
+                            (weight!! * w.red + (100 - weight) * i.red) / 100,
+                            (weight * w.green + (100 - weight) * i.green) / 100,
+                            (weight * w.blue + (100 - weight) * i.blue) / 100
+                        )
+                    } else {
+                        Color(i.red, i.green, i.blue)
+                    }
+                    blendedImage.setRGB(x, y, color.rgb)
+                } else {
+                    val i = Color(bufferedOriginal.getRGB(x, y))
+                    val w = Color(bufferedWatermark.getRGB(x, y))
+                    val color = Color(
+                        (weight!! * w.red + (100 - weight) * i.red) / 100,
+                        (weight * w.green + (100 - weight) * i.green) / 100,
+                        (weight * w.blue + (100 - weight) * i.blue) / 100
+                    )
+                    blendedImage.setRGB(x, y, color.rgb)
+                }
             }
         ImageIO.write(blendedImage, outputName.extension, outputName)
         println("The watermarked image $outputName has been created.")
