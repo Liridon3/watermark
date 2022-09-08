@@ -5,6 +5,7 @@ import java.awt.Color
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 var backgroundTransparencyColor: Color? = null
+var positionMethod: String? = null
 
 open class Image (
     var imageFile: File? = null, var width: Int = 0, var height: Int = 0,
@@ -16,12 +17,13 @@ fun main() {
     val originalImage: Image = origImageRead(originalFile)
     val watermarkFile: File = fileIsAcceptable("watermark image", "watermark")
     val bufferedWatermarkImage: BufferedImage = ImageIO.read(watermarkFile)
-    bothAreSameSize(bufferedWatermarkImage, bufferedOriginalImage)
+    watermarkSmallerThanImage(bufferedWatermarkImage, bufferedOriginalImage)
     val watermarkImage: Image = origImageRead(watermarkFile)
     val hasWatermarkAlphaChannel = watermarkImage.transparency == "TRANSLUCENT"
     val useWatermarkAlphaChannel = useWatermarkAlphaChannel(hasWatermarkAlphaChannel)
     setTransparencyColor(hasWatermarkAlphaChannel)
     val weightPercentage: Int? = weightPercent()
+    positionMethod()
     writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage, useWatermarkAlphaChannel, hasWatermarkAlphaChannel)
 }
 
@@ -52,10 +54,10 @@ fun useWatermarkAlphaChannel (hasWatermarkAlphaChannel: Boolean): String {
     return useAlphaChannel
 }
 
-fun bothAreSameSize (waterMarkBufferedImage: BufferedImage, originalImage: BufferedImage) {
-    if (waterMarkBufferedImage.width != originalImage.width || waterMarkBufferedImage.height != originalImage.height)
+fun watermarkSmallerThanImage (waterMarkBufferedImage: BufferedImage, originalImage: BufferedImage) {
+    if (waterMarkBufferedImage.width > originalImage.width || waterMarkBufferedImage.height > originalImage.height)
     {
-        println("The image and watermark dimensions are different.")
+        println("The watermark's dimensions are larger.")
         exit()
     }
 }
@@ -88,51 +90,58 @@ fun weightPercent (): Int? {
 
 fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage,
                weight: Int?, useWatermarkAlphaChannel: String, hasWatermarkAlphaChannel: Boolean) {
+    val startingPosition = if (positionMethod == "single") {
+        singlePositionMethod(bufferedOriginal, bufferedWatermark)
+    } else {
+        listOf<Int>(0, 0)
+    }
     println("Input the output image filename (jpg or png extension):")
     val outputName = File(readln())
     if (outputName.extension != "jpg" && outputName.extension != "png") {
         println("The output file extension isn't \"jpg\" or \"png\".")
         exit()
     } else {
-        val blendedImage = BufferedImage(watermarkImage.width, watermarkImage.height, BufferedImage.TYPE_INT_RGB)
+        val blendedImage = BufferedImage(bufferedOriginal.width, bufferedOriginal.height, BufferedImage.TYPE_INT_RGB)
         for (x in 0 until bufferedOriginal.width)
             for (y in 0 until bufferedOriginal.height) {
-                if (useWatermarkAlphaChannel == "yes") {
-                    val i = Color(bufferedOriginal.getRGB(x, y))
-                    val w = Color(bufferedWatermark.getRGB(x, y), true)
-                    val color = if (w.alpha == 255) {
-                        Color(
-                            (weight!! * w.red + (100 - weight) * i.red) / 100,
-                            (weight * w.green + (100 - weight) * i.green) / 100,
-                            (weight * w.blue + (100 - weight) * i.blue) / 100
+                if (positionMethod == "single") {
+                    if (x in startingPosition[0] until bufferedWatermark.width + startingPosition[0] &&
+                        y in startingPosition[1] until bufferedWatermark.height + startingPosition[1]
+                    ) {
+                        val xX = x - startingPosition[0]
+                        val yY = y - startingPosition[1]
+                        writeMethod(
+                            bufferedOriginal,
+                            bufferedWatermark,
+                            weight,
+                            useWatermarkAlphaChannel,
+                            hasWatermarkAlphaChannel,
+                            blendedImage,
+                            x,
+                            y,
+                            xX,
+                            yY
                         )
                     } else {
+                        val i = Color(bufferedOriginal.getRGB(x, y))
                         Color(i.red, i.green, i.blue)
+                        blendedImage.setRGB(x, y, i.rgb)
                     }
-                    blendedImage.setRGB(x, y, color.rgb)
-                } else if (backgroundTransparencyColor != null && !hasWatermarkAlphaChannel){
-                    val i = Color(bufferedOriginal.getRGB(x, y))
-                    val w = Color(bufferedWatermark.getRGB(x, y))
-                    val wo = if (w == backgroundTransparencyColor) { Color(w.red, w.green, w.blue, 0)} else w
-                    val color = if (wo.alpha == 255) {
-                        Color(
-                            (weight!! * wo.red + (100 - weight) * i.red) / 100,
-                            (weight * wo.green + (100 - weight) * i.green) / 100,
-                            (weight * wo.blue + (100 - weight) * i.blue) / 100
-                        )
-                    } else {
-                        Color(i.red, i.green, i.blue)
-                    }
-                    blendedImage.setRGB(x, y, color.rgb)
                 } else {
-                    val i = Color(bufferedOriginal.getRGB(x, y))
-                    val w = Color(bufferedWatermark.getRGB(x, y))
-                    val color = Color(
-                        (weight!! * w.red + (100 - weight) * i.red) / 100,
-                        (weight * w.green + (100 - weight) * i.green) / 100,
-                        (weight * w.blue + (100 - weight) * i.blue) / 100
+                    val xX = x % bufferedWatermark.width
+                    val yY = y % bufferedWatermark.height
+                    writeMethod(
+                        bufferedOriginal,
+                        bufferedWatermark,
+                        weight,
+                        useWatermarkAlphaChannel,
+                        hasWatermarkAlphaChannel,
+                        blendedImage,
+                        x,
+                        y,
+                        xX,
+                        yY
                     )
-                    blendedImage.setRGB(x, y, color.rgb)
                 }
             }
         ImageIO.write(blendedImage, outputName.extension, outputName)
@@ -141,10 +150,6 @@ fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedW
 }
 
 fun setTransparencyColor (hasWatermarkAlphaChannel: Boolean): Color? {
-    fun errorInputNotAcceptable () {
-        println("The transparency color input is invalid.")
-        exit()
-    }
     if (!hasWatermarkAlphaChannel) {
 
         println("Do you want to set a transparency color?")
@@ -154,17 +159,101 @@ fun setTransparencyColor (hasWatermarkAlphaChannel: Boolean): Color? {
                 val input = readln()
                 val list = mutableListOf(input.split(" ").map(String::toInt))
                 val (r: Int, g: Int, b: Int) = input.split(" ").map(String::toInt)
-                require(r in 0..255) { errorInputNotAcceptable() }
-                require(g in 0..255) { errorInputNotAcceptable() }
-                require(b in 0..255) { errorInputNotAcceptable() }
-                require(list[0].lastIndex == 2) { errorInputNotAcceptable() }
+                require(r in 0..255) { errorInputNotAcceptable("The transparency color input is invalid.") }
+                require(g in 0..255) { errorInputNotAcceptable("The transparency color input is invalid.") }
+                require(b in 0..255) { errorInputNotAcceptable("The transparency color input is invalid.") }
+                require(list[0].lastIndex == 2) { errorInputNotAcceptable("The transparency color input is invalid.") }
                 backgroundTransparencyColor = Color(r, g, b)
             } catch (e: Exception) {
-                errorInputNotAcceptable()
+                errorInputNotAcceptable("The transparency color input is invalid.")
             }
         }
     }
     return backgroundTransparencyColor
+}
+
+fun positionMethod (): String? {
+    println("Choose the position method (single, grid):")
+    try {
+        positionMethod = readln()
+        require(positionMethod == "single" || positionMethod == "grid")
+    } catch (e: Exception) {
+        errorInputNotAcceptable("The position method input is invalid.")
+    }
+    return positionMethod
+}
+
+fun singlePositionMethod(bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage): MutableList<Int> {
+    var diffX: Int = bufferedOriginal.width - bufferedWatermark.width
+    var diffY: Int = bufferedOriginal.height - bufferedWatermark.height
+    var x: Int = -1
+    var y: Int = -1
+    var xy: MutableList<Int> = mutableListOf(x, y)
+    if (positionMethod == "single") {
+        try {
+            println("Input the watermark position ([x 0-$diffX] [y 0-$diffY]):")
+            val inputList: List<String> = readln().split(" ")
+            x = inputList[0].toInt()
+            y = inputList[1].toInt()
+            require(inputList.lastIndex == 1)
+            if (x !in 0..diffX || y !in 0..diffY)
+                errorInputNotAcceptable("The position input is out of range.")
+            xy[0] = x
+            xy[1] = y
+        } catch (e: Exception) {
+            errorInputNotAcceptable("The position input is invalid.")
+        }
+    }
+    return xy
+}
+
+fun writeMethod (bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage, weight: Int?,
+                 useWatermarkAlphaChannel: String, hasWatermarkAlphaChannel: Boolean, blendedImage: BufferedImage, x: Int, y: Int, xX: Int, yY: Int) {
+
+    if (useWatermarkAlphaChannel == "yes") {
+        val i = Color(bufferedOriginal.getRGB(x, y))
+        val w = Color(bufferedWatermark.getRGB(xX, yY), true)
+        val color = if (w.alpha == 255) {
+            Color(
+                (weight!! * w.red + (100 - weight) * i.red) / 100,
+                (weight * w.green + (100 - weight) * i.green) / 100,
+                (weight * w.blue + (100 - weight) * i.blue) / 100
+            )
+        } else {
+            Color(i.red, i.green, i.blue)
+        }
+        blendedImage.setRGB(x, y, color.rgb)
+    } else if (backgroundTransparencyColor != null && !hasWatermarkAlphaChannel) {
+        val i = Color(bufferedOriginal.getRGB(x, y))
+        val w = Color(bufferedWatermark.getRGB(xX, yY))
+        val wo = if (w == backgroundTransparencyColor) {
+            Color(w.red, w.green, w.blue, 0)
+        } else w
+        val color = if (wo.alpha == 255) {
+            Color(
+                (weight!! * wo.red + (100 - weight) * i.red) / 100,
+                (weight * wo.green + (100 - weight) * i.green) / 100,
+                (weight * wo.blue + (100 - weight) * i.blue) / 100
+            )
+        } else {
+            Color(i.red, i.green, i.blue)
+        }
+        blendedImage.setRGB(x, y, color.rgb)
+    } else {
+        val i = Color(bufferedOriginal.getRGB(x, y))
+        val w = Color(bufferedWatermark.getRGB(xX, yY))
+        val color = Color(
+            (weight!! * w.red + (100 - weight) * i.red) / 100,
+            (weight * w.green + (100 - weight) * i.green) / 100,
+            (weight * w.blue + (100 - weight) * i.blue) / 100
+        )
+        blendedImage.setRGB(x, y, color.rgb)
+    }
+}
+
+fun errorInputNotAcceptable (error: String) {
+    println(error)
+    exit()
 }
 
 fun exit () {
