@@ -4,7 +4,7 @@ import java.awt.image.BufferedImage
 import java.awt.Color
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
-
+var backgroundTransparencyColor: Color? = null
 
 open class Image (
     var imageFile: File? = null, var width: Int = 0, var height: Int = 0,
@@ -20,8 +20,9 @@ fun main() {
     val watermarkImage: Image = origImageRead(watermarkFile)
     val hasWatermarkAlphaChannel = watermarkImage.transparency == "TRANSLUCENT"
     val useWatermarkAlphaChannel = useWatermarkAlphaChannel(hasWatermarkAlphaChannel)
+    setTransparencyColor(hasWatermarkAlphaChannel)
     val weightPercentage: Int? = weightPercent()
-    writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage, useWatermarkAlphaChannel)
+    writeImage(watermarkImage, bufferedOriginalImage, bufferedWatermarkImage, weightPercentage, useWatermarkAlphaChannel, hasWatermarkAlphaChannel)
 }
 
 fun fileIsAcceptable (imageName: String, imageName2: String): File {
@@ -86,7 +87,7 @@ fun weightPercent (): Int? {
 }
 
 fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedWatermark: BufferedImage,
-               weight: Int?, useWatermarkAlphaChannel: String) {
+               weight: Int?, useWatermarkAlphaChannel: String, hasWatermarkAlphaChannel: Boolean) {
     println("Input the output image filename (jpg or png extension):")
     val outputName = File(readln())
     if (outputName.extension != "jpg" && outputName.extension != "png") {
@@ -109,6 +110,20 @@ fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedW
                         Color(i.red, i.green, i.blue)
                     }
                     blendedImage.setRGB(x, y, color.rgb)
+                } else if (backgroundTransparencyColor != null && !hasWatermarkAlphaChannel){
+                    val i = Color(bufferedOriginal.getRGB(x, y))
+                    val w = Color(bufferedWatermark.getRGB(x, y))
+                    val wo = if (w == backgroundTransparencyColor) { Color(w.red, w.green, w.blue, 0)} else w
+                    val color = if (wo.alpha == 255) {
+                        Color(
+                            (weight!! * wo.red + (100 - weight) * i.red) / 100,
+                            (weight * wo.green + (100 - weight) * i.green) / 100,
+                            (weight * wo.blue + (100 - weight) * i.blue) / 100
+                        )
+                    } else {
+                        Color(i.red, i.green, i.blue)
+                    }
+                    blendedImage.setRGB(x, y, color.rgb)
                 } else {
                     val i = Color(bufferedOriginal.getRGB(x, y))
                     val w = Color(bufferedWatermark.getRGB(x, y))
@@ -123,6 +138,33 @@ fun writeImage(watermarkImage: Image, bufferedOriginal: BufferedImage, bufferedW
         ImageIO.write(blendedImage, outputName.extension, outputName)
         println("The watermarked image $outputName has been created.")
     }
+}
+
+fun setTransparencyColor (hasWatermarkAlphaChannel: Boolean): Color? {
+    fun errorInputNotAcceptable () {
+        println("The transparency color input is invalid.")
+        exit()
+    }
+    if (!hasWatermarkAlphaChannel) {
+
+        println("Do you want to set a transparency color?")
+        if (readln() == "yes") {
+            println("Input a transparency color ([Red] [Green] [Blue]):")
+            try {
+                val input = readln()
+                val list = mutableListOf(input.split(" ").map(String::toInt))
+                val (r: Int, g: Int, b: Int) = input.split(" ").map(String::toInt)
+                require(r in 0..255) { errorInputNotAcceptable() }
+                require(g in 0..255) { errorInputNotAcceptable() }
+                require(b in 0..255) { errorInputNotAcceptable() }
+                require(list[0].lastIndex == 2) { errorInputNotAcceptable() }
+                backgroundTransparencyColor = Color(r, g, b)
+            } catch (e: Exception) {
+                errorInputNotAcceptable()
+            }
+        }
+    }
+    return backgroundTransparencyColor
 }
 
 fun exit () {

@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb21531-2dbc-474d-876b-b0af9296eca9" name="Changes" comment="stage2Complete">
+    <list default="true" id="1bb21531-2dbc-474d-876b-b0af9296eca9" name="Changes" comment="stage3Complete">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/Main.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,7 +90,14 @@
       <option name="project" value="LOCAL" />
       <updated>1662508500570</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="stage3Complete">
+      <created>1662515033028</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1662515033028</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -107,6 +115,7 @@
     <MESSAGE value="first" />
     <MESSAGE value="second" />
     <MESSAGE value="stage2Complete" />
-    <option name="LAST_COMMIT_MESSAGE" value="stage2Complete" />
+    <MESSAGE value="stage3Complete" />
+    <option name="LAST_COMMIT_MESSAGE" value="stage3Complete" />
   </component>
 </project>
